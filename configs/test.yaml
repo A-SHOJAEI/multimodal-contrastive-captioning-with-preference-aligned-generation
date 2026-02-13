@@ -1,0 +1,101 @@
+# Test configuration for quick validation
+model:
+  vision_encoder: "openai/clip-vit-base-patch32"
+  text_decoder: "gpt2"
+  projection_dim: 512
+  freeze_vision_encoder: false
+  freeze_text_decoder: false
+  max_caption_length: 77
+
+data:
+  train_dataset: "conceptual_captions"
+  preference_dataset: "openbmb/UltraFeedback"
+  train_split: "train"
+  val_split: "validation"
+  test_split: "test"
+  max_train_samples: 10
+  max_val_samples: 5
+  max_test_samples: 5
+  num_workers: 0
+  prefetch_factor: 2
+
+training:
+  phase1_epochs: 1
+  phase1_batch_size: 2
+  phase1_learning_rate: 0.0001
+  phase1_warmup_steps: 1
+
+  phase2_epochs: 0
+  phase2_batch_size: 2
+  phase2_learning_rate: 0.00003
+  phase2_warmup_steps: 1
+  phase2_freeze_vision: true
+
+  optimizer: "adamw"
+  weight_decay: 0.01
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  adam_epsilon: 0.00000001
+  max_grad_norm: 1.0
+  gradient_accumulation_steps: 1
+
+  lr_scheduler: "cosine"
+  lr_scheduler_warmup_ratio: 0.1
+  num_cycles: 0.5
+
+  early_stopping_patience: 3
+  early_stopping_metric: "val_loss"
+  early_stopping_mode: "min"
+
+  mixed_precision: false
+  fp16: false
+
+  save_strategy: "epoch"
+  save_total_limit: 3
+  load_best_model_at_end: true
+  metric_for_best_model: "val_clip_score"
+  greater_is_better: true
+
+  logging_steps: 1
+  eval_steps: 1
+  save_steps: 1
+
+  seed: 42
+  deterministic: true
+
+loss:
+  contrastive_temperature: 0.07
+  contrastive_weight: 1.0
+  use_symmetric_contrastive: true
+
+  preference_weight: 0.5
+  preference_margin: 0.1
+  preference_beta: 0.1
+
+  adaptive_weighting: true
+  initial_contrastive_ratio: 0.7
+  final_contrastive_ratio: 0.3
+
+evaluation:
+  compute_clip_score: true
+  compute_bleu: true
+  compute_cider: true
+  compute_meteor: true
+  compute_rouge: true
+  compute_bert_score: false
+  num_beams: 5
+  do_sample: false
+  top_k: 50
+  top_p: 0.95
+  temperature: 1.0
+
+output:
+  output_dir: "test_models"
+  logging_dir: "test_logs"
+  results_dir: "test_results"
+  checkpoint_dir: "test_checkpoints"
+
+hardware:
+  device: "cpu"
+  num_gpus: 1
+  dataloader_num_workers: 0
