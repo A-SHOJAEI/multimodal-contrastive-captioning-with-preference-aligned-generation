@@ -5,19 +5,30 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 import torch
-from nltk.translate.bleu_score import corpus_bleu, sentence_bleu
-from nltk.translate.meteor_score import meteor_score
-from rouge_score import rouge_scorer
+try:
+    from nltk.translate.bleu_score import corpus_bleu, sentence_bleu
+    from nltk.translate.meteor_score import meteor_score
+    NLTK_AVAILABLE = True
+except ImportError:
+    corpus_bleu = sentence_bleu = meteor_score = None
+    NLTK_AVAILABLE = False
+try:
+    from rouge_score import rouge_scorer
+    ROUGE_AVAILABLE = True
+except ImportError:
+    rouge_scorer = None
+    ROUGE_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
 # Download NLTK data if needed
-try:
-    import nltk
-    nltk.download("wordnet", quiet=True)
-    nltk.download("omw-1.4", quiet=True)
-except Exception as e:
-    logger.warning(f"Could not download NLTK data: {e}")
+if NLTK_AVAILABLE:
+    try:
+        import nltk
+        nltk.download("wordnet", quiet=True)
+        nltk.download("omw-1.4", quiet=True)
+    except Exception as e:
+        logger.warning(f"Could not download NLTK data: {e}")
 
 
 class CaptionMetrics:
@@ -111,7 +122,7 @@ class CaptionMetrics:
                 logger.warning(f"Error computing METEOR: {e}")
                 scores.append(0.0)
 
-        return np.mean(scores)
+        return np.mean(scores) if scores else 0.0
 
     def compute_rouge(
         self,
@@ -135,9 +146,9 @@ class CaptionMetrics:
                 self.rouge_scorer.score(ref, hyp)["rougeL"].fmeasure
                 for ref in refs
             ]
-            scores.append(max(ref_scores))
+            scores.append(max(ref_scores) if ref_scores else 0.0)
 
-        return np.mean(scores)
+        return np.mean(scores) if scores else 0.0
 
     def compute_cider(
         self,
@@ -184,7 +195,7 @@ class CaptionMetrics:
                 scores.append(0.0)
 
         # Scale to typical CIDEr range
-        return np.mean(scores) * 10.0
+        return (np.mean(scores) * 10.0) if scores else 0.0
 
     def compute_clip_score(
         self,

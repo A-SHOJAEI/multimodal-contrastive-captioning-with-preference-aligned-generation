@@ -16,8 +16,9 @@ pytest>=7.4.0
 pytest-cov>=4.1.0
 tqdm>=4.66.0
 nltk>=3.8.0
-pycocotools>=2.0.7
-clip-by-openai>=1.0
+# pycocotools requires python3-dev headers; skip if unavailable
+# pycocotools>=2.0.7
+# clip-by-openai>=1.0
 sentencepiece>=0.1.99
 sacrebleu>=2.3.0
 rouge-score>=0.1.2

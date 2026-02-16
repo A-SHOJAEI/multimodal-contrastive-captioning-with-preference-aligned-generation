@@ -16,7 +16,9 @@ logger = logging.getLogger(__name__)
 
 class ConceptualCaptionsDataset(Dataset):
     """
-    Dataset wrapper for Conceptual Captions.
+    Dataset wrapper for image-caption datasets from HuggingFace.
+
+    Uses nlphuji/flickr30k or similar real image-caption datasets.
 
     Attributes:
         data: Loaded dataset split
@@ -31,7 +33,7 @@ class ConceptualCaptionsDataset(Dataset):
         max_samples: Optional[int] = None,
     ):
         """
-        Initialize Conceptual Captions dataset.
+        Initialize image-caption dataset from HuggingFace.
 
         Args:
             split: Dataset split ("train", "validation", or "test")
@@ -40,46 +42,51 @@ class ConceptualCaptionsDataset(Dataset):
         """
         self.transform = transform or PreprocessTransform()
 
-        # Use synthetic data for demonstration
-        # In production, replace this with your actual image-caption dataset
-        logger.info(f"Creating synthetic image-caption dataset for {split} split")
+        # Map splits for Flickr30k (it only has "test" split on HF)
+        hf_split = "test"  # Flickr30k on HF only has test split
+        num_samples = max_samples if max_samples else (5000 if split == "train" else 500)
 
-        num_synthetic = max_samples if max_samples else (10000 if split == "train" else 1000)
-        self.data = self._create_synthetic_data(num_synthetic, split)
+        import os
+        smoke_test = os.environ.get("SMOKE_TEST", "0") == "1"
 
-        logger.info(f"Created {len(self.data)} synthetic samples for {split} split")
+        if smoke_test:
+            logger.info(f"SMOKE_TEST: creating minimal synthetic image-caption data for {split}")
+            self.data = self._create_smoke_data(min(num_samples, 50), split)
+            logger.info(f"Created {len(self.data)} smoke test samples for {split} split")
+        else:
+            logger.info(f"Loading Flickr30k image-caption dataset for {split} split ({num_samples} samples)")
+            try:
+                ds = load_dataset("nlphuji/flickr30k", split=hf_split, streaming=False)
+                ds = ds.shuffle(seed=42)
+                if split == "train":
+                    ds = ds.select(range(min(num_samples, len(ds) - 2000)))
+                elif split == "validation":
+                    offset = max(0, len(ds) - 2000)
+                    ds = ds.select(range(offset, min(offset + num_samples, len(ds) - 1000)))
+                else:  # test
+                    offset = max(0, len(ds) - 1000)
+                    ds = ds.select(range(offset, min(offset + num_samples, len(ds))))
 
-    def _create_synthetic_data(self, num_samples: int, split: str) -> list:
-        """Create synthetic image-caption pairs for demonstration."""
+                self.data = ds
+                logger.info(f"Loaded {len(self.data)} real image-caption samples for {split} split")
+
+            except Exception as e:
+                logger.error(f"Failed to load Flickr30k: {e}")
+                raise RuntimeError(
+                    f"Could not load Flickr30k dataset: {e}. "
+                    "Install with: pip install datasets pillow"
+                )
+
+    def _create_smoke_data(self, num_samples: int, split: str) -> list:
+        """Create minimal synthetic data for smoke test validation."""
         import numpy as np
-        synthetic_data = []
-
-        captions = [
-            "a cat sitting on a chair",
-            "a dog playing in the park",
-            "a beautiful sunset over the ocean",
-            "a city skyline at night",
-            "mountains covered in snow",
-            "a red car on a highway",
-            "people walking in a busy street",
-            "a bird flying in the sky",
-            "flowers blooming in a garden",
-            "a laptop on a wooden desk",
-        ]
-
+        data = []
+        captions = ["a cat on a chair", "a dog in the park", "sunset over ocean",
+                     "city at night", "snowy mountains"]
         for i in range(num_samples):
-            # Create random RGB image (224x224)
             img_array = np.random.randint(0, 255, (224, 224, 3), dtype=np.uint8)
-            image = Image.fromarray(img_array)
-
-            caption = captions[i % len(captions)]
-
-            synthetic_data.append({
-                "image": image,
-                "caption": caption,
-            })
-
-        return synthetic_data
+            data.append({"image": Image.fromarray(img_array), "caption": captions[i % len(captions)]})
+        return data
 
     def __len__(self) -> int:
         """Return dataset length."""
@@ -112,6 +119,9 @@ class ConceptualCaptionsDataset(Dataset):
 
             if "caption" in sample:
                 caption = sample["caption"]
+                # Flickr30k returns a list of 5 captions; pick the first
+                if isinstance(caption, list):
+                    caption = caption[0]
             elif "text" in sample:
                 caption = sample["text"]
             elif "captions" in sample:
@@ -120,17 +130,18 @@ class ConceptualCaptionsDataset(Dataset):
             else:
                 raise KeyError("No caption field found in sample")
 
-            # Ensure image is PIL Image
+            # Ensure image is PIL Image in RGB mode
             if not isinstance(image, Image.Image):
                 if isinstance(image, str):
                     image = Image.open(image).convert("RGB")
                 else:
-                    # Handle numpy arrays or tensors
                     import numpy as np
                     if isinstance(image, np.ndarray):
                         image = Image.fromarray(image).convert("RGB")
                     else:
                         image = Image.fromarray(np.array(image)).convert("RGB")
+            else:
+                image = image.convert("RGB")
 
             # Apply preprocessing
             processed = self.transform(image, caption)
@@ -255,6 +266,10 @@ def get_dataloader(
     Returns:
         DataLoader instance
     """
+    # Only drop last batch if dataset is larger than batch_size
+    # This prevents empty dataloaders for small datasets
+    drop_last = len(dataset) > batch_size
+
     return DataLoader(
         dataset,
         batch_size=batch_size,
@@ -262,7 +277,7 @@ def get_dataloader(
         num_workers=num_workers,
         pin_memory=pin_memory,
         collate_fn=collate_fn,
-        drop_last=True,
+        drop_last=drop_last,
     )
 
 

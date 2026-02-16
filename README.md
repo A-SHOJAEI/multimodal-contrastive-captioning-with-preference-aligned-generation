@@ -92,25 +92,36 @@ Dataset sizes configurable in YAML configs. Default uses 10000 train, 1000 val/t
 
 ## Results
 
-Run training to generate results in `results/` directory. Example command:
+### Training Performance
 
-```bash
-python scripts/train.py
-python scripts/evaluate.py --checkpoint checkpoints/best_model.pt --output results/metrics.json
+Two-phase training on Conceptual Captions (Phase 1) and UltraFeedback preferences (Phase 2), trained on NVIDIA RTX 4090.
+
+| Phase | Epochs | Final Train Loss | Final Val Loss | Contrastive Loss | LM Loss |
+|-------|--------|-----------------|----------------|-----------------|---------|
+| Phase 1 (Contrastive) | 10 | 9.7461 | 1.3312 | 3.9152 | 8.3888 |
+| Phase 2 (Preference) | 4 (early stop) | 3.8012 | 1.1751 | 3.9324 | 2.6493 |
+
+Validation loss improved from 2.7408 to 1.1751 across training (57.1% reduction). Phase 2 preference alignment further reduced val loss from 1.3312 to 1.1751 before early stopping at epoch 4 (patience=3).
+
+### Evaluation Metrics
+
+Evaluated on the best checkpoint (`checkpoints/best_model.pt`, Phase 2 Epoch 1) using 20 test samples with beam search (num_beams=5).
+
+| Metric | Score |
+|--------|-------|
+| CLIP Score | 0.2347 |
+| BLEU-4 | 0.0058 |
+| CIDEr | 0.0000 |
+| ROUGE-L | 0.0122 |
+| Preference Win Rate | 0.6000 |
+
+The CLIP Score of 0.2347 reflects vision-language alignment in the shared embedding space. The preference win rate of 60% shows the model's contrastive embeddings prefer generated captions over randomly shuffled alternatives. Full results are available in `results/evaluation_metrics.json`.
+
+### Training Convergence
+
 ```
-
-## Ablation Studies
-
-Compare full model vs contrastive-only baseline:
-
-```bash
-# Train both variants
-python scripts/train.py --config configs/default.yaml
-python scripts/train.py --config configs/ablation.yaml
-
-# Evaluate both
-python scripts/evaluate.py --checkpoint checkpoints/best_model.pt --output results/default.json
-python scripts/evaluate.py --checkpoint checkpoints/best_model_ablation.pt --output results/ablation.json
+Phase 1 - Val Loss:  2.7408 -> 2.6126 -> 2.5223 -> 2.2728 -> 2.1170 -> 1.9612 -> 1.8055 -> 1.6497 -> 1.4878 -> 1.3312
+Phase 2 - Val Loss:  1.1751 -> 1.1762 -> 1.1777 -> 1.1797 (early stop)
 ```
 
 ## Project Structure

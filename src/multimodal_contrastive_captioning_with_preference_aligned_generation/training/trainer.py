@@ -266,6 +266,13 @@ class Trainer:
             })
 
         # Compute averages
+        if num_batches == 0:
+            logger.warning("No batches processed during training epoch. Check dataset size vs batch size.")
+            return {
+                "train_loss": 0.0,
+                "train_contrastive_loss": 0.0,
+            }
+
         avg_metrics = {
             "train_loss": total_loss / num_batches,
             "train_contrastive_loss": total_contrastive_loss / num_batches,
@@ -312,6 +319,13 @@ class Trainer:
                 if "contrastive_loss" in loss_dict:
                     total_contrastive_loss += loss_dict["contrastive_loss"]
                 num_batches += 1
+
+        if num_batches == 0:
+            logger.warning("No batches processed during validation. Check dataset size vs batch size.")
+            return {
+                "val_loss": 0.0,
+                "val_contrastive_loss": 0.0,
+            }
 
         return {
             "val_loss": total_loss / num_batches,

@@ -87,3 +87,4 @@ data/*.h5
 data/*.hdf5
 outputs/
 .venv/
+*.pyc
